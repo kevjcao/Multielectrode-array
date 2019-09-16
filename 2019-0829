@@ -1,8 +1,8 @@
 %% Notes
 % 1. This code requires sorted spike data from Plexon saved in an excel
-% format delineated as: 'SpikeTimes', 'Unit no.', 'Ch. no.'; in that order. 
+% format delineated as: 'SpikeTimes', 'Unit no.', 'channels. no.'; in that order. 
 
-% 2. It will generate a new array named 'RawUnits' with each unit's firing
+% 2. It will generate a new array named 'raw_units' with each unit's firing
 % activity listed as a single Nx3 array where N is the no. of events. The
 % rasters are created from just the first column of each unit's array (e.g.
 % the spike times).
@@ -39,49 +39,58 @@ if Trigger > 0
 
     delimiter = '\t';
     formatSpec = '%*s%s%[^\n\r]';
-    TrigTimesArray = textscan(fidTrig, ...                                % opens .txt trigger file (from MC_Rack data tool) and parses raw text file
+    trig_timesArray = textscan(fidTrig, ...                                % opens .txt trigger file (from MC_Rack data tool) and parses raw text file
         formatSpec, 'Delimiter', delimiter, ...                           % into a 1x2 array with 1st cell being 3 ms trigger record
         'TextType', 'string',  'ReturnOnError', false);                   % and 2nd cell being the bias voltage (-1 or null)
 
     fclose(fidTrig);
 
-    trigTimesRaw = TrigTimesArray{1,1}(:,1);                              % creates new numerical array with only the 3 ms trigger record
-    trigTimesRaw(1:4,:) = []; 
-    trigTimesRaw = double(trigTimesRaw);
+    trig_timesRaw = trig_timesArray{1,1}(:,1);                              % creates new numerical array with only the 3 ms trigger record
+    trig_timesRaw(1:4,:) = []; 
+    trig_timesRaw = double(trig_timesRaw);
     
-    clearvars ans delimiter fidTrig formatSpec TrigTimesArray
+    record_time = max(trig_timesRaw)/1000;                               % returns the total time of the recording in seconds
     
-    parsedTimes = [];
+    clearvars ans delimiter fidTrig formatSpec trig_timesArray
+    
+    parsed_trigTimes = [];
 
-    for i = 1:length(trigTimesRaw)-1                                      % creates an array with the trigger times before and after the 1V TTL signal
-        diffTrig = trigTimesRaw(i + 1) - trigTimesRaw(i);
-        if diffTrig > 4
-            parsedTimes = [parsedTimes; trigTimesRaw(i); trigTimesRaw(i + 1)];
+    for i = 1:length(trig_timesRaw)-1                                      % creates an array with the trigger times before and after the 1V TTL signal
+        diff_trig = trig_timesRaw(i + 1) - trig_timesRaw(i);
+        if diff_trig > 4
+            parsed_trigTimes = [parsed_trigTimes; trig_timesRaw(i); trig_timesRaw(i + 1)];
         end
     end
     
-    parsedTimes = parsedTimes/1000;
+    parsed_trigTimes = parsed_trigTimes/1000;
     
-    IntervTimes = [parsedTimes(1:2:end,:), parsedTimes(2:2:end,:)];       % splits numTime array into two columns - column 1 for light on and column 2 for light off
+    interv_times = [parsed_trigTimes(1:2:end,:), parsed_trigTimes(2:2:end,:)];         % splits numTime array into two columns - column 1 for light on and column 2 for light off
+    interv_duration = diff(interv_times, 1, 2);                             % returns the total length of each light stim interval, in seconds
+    lighton_time = sum(interv_duration);                                       % returns the total time that the light stim was on, in seconds
+    dark_time = record_time - lighton_time;                                 % length of time, in seconds, without light stimulus
 else
 end
 
+clearvars diff_trig
+
 
 %% Raw histogram of all recorded spikes
-
+tic
 Histoplot = 1;                                                            % set 0 (no histogram) or 1 (histogram)
+
 BW = 0.1;                                                                 % set bins (bin width, BW) here (in seconds) 
+
 fprintf('Bin size = %d ms \n', BW * 1000)
-spikeTimesHist = cell2mat(raw(:,1));
-[N, EDGES] = histcounts(spikeTimesHist, 'BinWidth', BW);                  % N is the counts for each bin; EDGES are the bin edges
+spike_timeHist = cell2mat(raw(:,1));
+[N, EDGES] = histcounts(spike_timeHist, 'BinWidth', BW);                  % N is the counts for each bin; EDGES are the bin edges
 
 hold on;
 if Histoplot > 0
     figure(1)
-    HistoSpikes = histogram(spikeTimesHist, 'BinWidth', BW);
+    HistoSpikes = histogram(spike_timeHist, 'BinWidth', BW);
     xlabel('Time (s)');
     ylabel('Number of spikes');
-else
+else 
     disp 'No histogram plotted';
 end
 hold off
@@ -91,69 +100,240 @@ hold off
 
 Sort = 1;                                                                 % if 1 = sort, if 0 = raw unit # without sorting
 
-[~,~,Ch] = unique(num(:,3));                                              % first separate raw num array based on electrode ch from MEA chip
-RawCh = accumarray(Ch, 1:size(num,1),[],@(r){num(r,:)});                  % generate a cell w/ subcells that contain each channel's unit firing
+[~,~,channels] = unique(num(:,3));                                              % first separate raw num array based on electrode ch from MEA chip
+raw_channels = accumarray(channels, 1:size(num,1),[],@(r){num(r,:)});                  % generate a cell w/ subcells that contain each channel's unit firing
 
-RawUnits = [];
+raw_units = [];
 ntrials = [];
-spikeTimes = [];
+spike_times = [];
 
-for i = 1:numel(RawCh)
-    [~,~,Units] = unique(RawCh{i,1}(:,2));                                % generate RawCh array based on unit number from each ch
-    RawUnits = [RawUnits; ...
-        accumarray(Units, ...
-        1:size(RawCh{i,1}(:,2),1),[],@(r){RawCh{i,1}(r,:)})];             % generate a cell array with subcells that has each unit's activity
+for i = 1:numel(raw_channels)
+    [~,~,units] = unique(raw_channels{i,1}(:,2));                                % generate raw_channels array based on unit number from each ch
+    raw_units = [raw_units; ...
+        accumarray(units, ...
+        1:size(raw_channels{i,1}(:,2),1),[],@(r){raw_channels{i,1}(r,:)})];             % generate a cell array with subcells that has each unit's activity
 end
 
 figure(2)
 hold on;
 
 if Sort < 1
-    for m = 1:length(RawUnits)
-        spikeTimes = RawUnits{m}(:,1);
-        ntrials = ones(size(spikeTimes,1),1) * m;
-        plot(spikeTimes, ntrials, 'Marker', '.', 'Color', 'k', 'LineStyle', 'none')
+    for m = 1:length(raw_units)
+        spike_times = raw_units{m}(:,1);
+        ntrials = ones(size(spike_times,1),1) * m;
+        plot(spike_times, ntrials, 'Marker', '.', 'Color', 'k', 'LineStyle', 'none')
     end
 else
 end
 
 if Sort > 0
-    [~,Sorted] = sort(cellfun(@length,RawUnits), 'descend');
-    RawUnits = RawUnits(Sorted);
-    for m = 1:length(RawUnits)
-        spikeTimes = RawUnits{m}(:,1);
-        ntrials = ones(size(spikeTimes,1),1) * m;
-        plot(spikeTimes, ntrials, 'Marker', '.', 'Color', 'k', 'LineStyle', 'none')
+    [~,sorted_units] = sort(cellfun(@length,raw_units), 'descend');
+    raw_units = raw_units(sorted_units);
+    for m = 1:length(raw_units)
+        spike_times = raw_units{m}(:,1);
+        ntrials = ones(size(spike_times,1),1) * m;
+        plot(spike_times, ntrials, 'Marker', '.', 'Color', 'k', 'LineStyle', 'none')
     end
 else
 end
 
-ylim([0 size(RawUnits,1) + 1]);
+ylim([0 size(raw_units,1) + 1]);
 xlabel('Time (s)');
 ylabel('Unit');
 hold off
 
-fprintf('Number of units = %o \n', m);
+fprintf('Number of channels = %d \n', i);
+fprintf('Number of units = %d \n', m);
+
+%% Calculate firing frequencies and PI per unit
+
+if Trigger > 0    
+    raw_unitsTime = cell(numel(raw_units), 1);
+
+    for m = 1:length(raw_units)
+        unit_time = raw_units{m,1}(:,1);
+        raw_unitsTime{m} = unit_time;
+    end
+
+    spikes_light = cell(numel(raw_units), 1);
+    spikes_on = [];
+    
+    freq_light = cell(numel(raw_units), 1);
+    freq_on = [];
+    
+    unitfreq_light = cell(numel(raw_units), 1);
+    spikes_dark = cell(numel(raw_units), 1);
+    unitfreq_dark = cell(numel(raw_units), 1);
+    
+    for m = 1:length(raw_units)
+        for r = 1:length(interv_times)
+            spikes_on(r) = numel(raw_unitsTime{m}(raw_unitsTime{m}(:,1) >= interv_times(r,1) & raw_unitsTime{m}(:,1) <= interv_times(r,2)));
+            spikes_on = spikes_on.';
+            
+            spikes_light{m} = spikes_on;                                % calculates number of spikes that occur in each light-on interval for a particular unit
+        end
+
+        for r = 1:length(interv_times)
+            freq_on(r) = spikes_light{m}(r,1) / interv_duration(r,1);
+            freq_on = freq_on.';
+            
+            freq_light{m} = freq_on;                                    % calculates the firing frequency of each unit in each of the light-on intervals
+        end
+        
+        
+        spikes_dark{m} = numel(raw_unitsTime{m}(raw_unitsTime{m}(:,1) >=0)) - sum(spikes_light{m});
+        unitfreq_dark{m} = spikes_dark{m} / dark_time;                      % calculates the average unit firing frequency in without light stimulus
+    end
+    
+    unitfreq_dark = cell2mat(unitfreq_dark);
+    unitfreq_light = cellfun(@mean, freq_light);
+    
+    avgfreq_dark = mean(unitfreq_dark);
+    stdfreq_dark = std(unitfreq_dark);
+    avgfreq_light = mean(unitfreq_light);
+    stdfreq_light = std(unitfreq_light);
+    
+    for m = 1:length(raw_units)
+        unit_PI(m) = (unitfreq_light(m) - unitfreq_dark(m)) / (unitfreq_light(m) + unitfreq_dark(m));
+    end
+    
+    unit_PI = unit_PI.';
+    
+    avg_unitPI = mean(unit_PI);
+    std_unitPI = std(unit_PI);
+    
+    figure(3)
+    hold on;
+    
+    BW2 = 0.1;
+    unitPI_histoplot = histogram(unit_PI, 'BinWidth', BW2);
+    xlim([-1 1]);
+    xlabel('Photoswitch index, PI');
+    ylabel('Events');
+    
+    hold off;
+    
+    fprintf('Average firing frequency in darkness = %.2f +/- %.2f Hz \n', avgfreq_dark, stdfreq_dark);
+    fprintf('Average firing frequency in light = %.2f +/- %.2f Hz \n', avgfreq_light, stdfreq_light);
+    fprintf('Average photoswitch index, P.I. = %.3f +/- %.3f \n', avg_unitPI, std_unitPI);
+    
+end
+
+    
+    
+%% Histogram method of finding frequencies and PI per unit    
+
+% if Trigger > 0
+%     [N_unit, EDGES_unit] = cellfun(@(x) histcounts(x, 'BinWidth', BW), raw_unitsTime, 'UniformOutput', false);
+%     clearvars x
+% 
+%     avg_firingUnit = cellfun(@(x) x / BW, N_unit, 'UniformOutput', false);
+%     clearvars x
+% 
+%     bin_centersUnit = cellfun(@(x) (x(1:end-1) + diff(x)/2), EDGES_unit, 'UniformOutput', false);
+%     clearvars x
+% 
+%     merged_units = cell(numel(raw_units), 1);
+% 
+%     for m = 1:length(raw_units)
+%         merge = [avg_firingUnit{m,1}(1,:); bin_centersUnit{m,1}(1,:)];
+%         merge = merge.';
+%         merged_units{m} = merge;
+%         
+% %         figure(7)
+% %         hold on;
+% %         plot(merged_units{m}(:,2),merged_units{m}(:,1));
+% %         hold off;
+%     end
+%     
+%     light_unit = cell(numel(raw_units), 1);
+%     lighton = [];
+% 
+%     light_events = cell(numel(raw_units), 1);
+%     lighton_events = [];
+%     
+%     lighton_freq  = cell(numel(raw_units), 1);
+%     
+%     dark_unit = cell(numel(raw_units), 1);
+%     dark_events = cell(numel(raw_units), 1);
+%     
+%     dark_freq = cell(numel(raw_units), 1);
+%     
+%     unit_PIhist = cell(numel(raw_units), 1);
+%     
+%     
+%     for m = 1:length(raw_units)
+%         for r = 1:length(interv_times)
+%             lighton(r) = sum(merged_units{m}(merged_units{m}(:,2) >= interv_times(r,1) & merged_units{m}(:,2) <= interv_times(r,2)));
+%             lighton = lighton.';   
+%         end
+%         light_unit{m} = sum(lighton(:,1));
+%         
+%         for r = 1:length(interv_times)
+%             lighton_events(r) = numel(merged_units{m}(merged_units{m}(:,2) >= interv_times(r,1) & merged_units{m}(:,2) <= interv_times(r,2)));
+%             lighton_events = lighton_events.';   
+%         end
+%         light_events{m} = sum(lighton_events(:,1));
+%        
+%         lighton_freq{m} = light_unit{m} / light_events{m};
+%         
+%         dark_unit{m} = sum(merged_units{m}(merged_units{m}(:,2) >= 0)) - light_unit{m};
+%         dark_events{m} = numel(merged_units{m}(merged_units{m}(:,2) >=0)) - light_events{m};
+%         
+%         dark_freq{m} = dark_unit{m} / dark_events{m};
+%         
+%         unit_PIhist{m} = (lighton_freq{m} - dark_freq{m}) / (lighton_freq{m} + dark_freq{m});
+%         
+%     end
+% 
+%     unit_PIhist = cell2mat(unit_PIhist);
+%     
+%     avg_lightfreqhist = mean(cell2mat(lighton_freq));
+%     avg_darkfreqhist = mean(cell2mat(dark_freq));
+%     
+%     avg_unitPIhist = mean(unit_PIhist);
+%     
+%     figure(4)
+%     hold on;
+%     
+%     BW2 = 0.1;
+%     PI_histoplot = histogram(unit_PIhist, 'BinWidth', BW2);
+%     xlim([-1 1]);
+%     xlabel('Photoswitch index, PI');
+%     ylabel('Events');
+%     
+%     hold off;
+%     disp('The followind values come from binning the data:');
+%     fprintf('Average firing frequency in darkness = %.2f Hz \n', avg_darkfreqhist);
+%     fprintf('Average firing frequency in light = %.2f Hz \n', avg_lightfreqhist);
+%     fprintf('Average photoswitch index, P.I. = %.3f \n', avg_unitPIhist);
+% 
+% else
+% end
 
 
-%% Calculating firing frequencies & creating frequency raster
+%% Calculating firing frequencies and PI per recording (not per unit)
 
-avgFiring = (N(1,:) / BW) / numel(RawUnits);                              % [no. events / bin size (s) = frequency] / no. units = average firing frequency per unit
-BinCenters = EDGES(1:end-1) + diff(EDGES)/2;
+avg_firing = (N(1,:) / BW) / numel(raw_units);                              % [no. events / bin size (s) = frequency] / no. units = average firing frequency per unit
+bin_centers = EDGES(1:end-1) + diff(EDGES)/2;
 
-figure(3)
-FreqPlot = bar(BinCenters, avgFiring, 'FaceColor', 'k', 'BarWidth', 1.5);
+
+%% Create frequency raster
+
+figure(5)
+
+FreqPlot = bar(bin_centers, avg_firing, 'FaceColor', 'k', 'BarWidth', 1.5);
 
 if Trigger > 0
     hold on;
-    for j = 1:length(IntervTimes)                                         % creates a shaded region for the light intervals
-        stimLim = IntervTimes(j,:);
-        lightStim = [min(stimLim) max(stimLim) max(stimLim) min(stimLim)];
-        patch(lightStim, [0 0 max(ylim)*[1 1]], [0.3010 0.7450 0.9330], 'LineStyle', 'none');
+    for r = 1:length(interv_times)                                         % creates a shaded region for the light intervals
+        stim_limits = interv_times(r,:);
+        light_stim = [min(stim_limits) max(stim_limits) max(stim_limits) min(stim_limits)];
+        patch(light_stim, [0 0 max(ylim)*[1 1]], [0.3010 0.7450 0.9330], 'LineStyle', 'none');
         hold on
     end
 
-    FreqPlot = bar(BinCenters, avgFiring, 'FaceColor', 'k', 'BarWidth', 1.5);
+    FreqPlot = bar(bin_centers, avg_firing, 'FaceColor', 'k', 'BarWidth', 1.5);
     hold on
 else
 end
@@ -164,101 +344,53 @@ ylabel('Average firing frequency per unit (Hz)');
 hold off
 
 
-%% Photoswitch index (e.g. relative change in RGC firing in dark v. in light)
-% Calculates average firing frequencies in darkness & in light, and the
-% average PI from these two values. To do so the code first calculates 1.
-% the total frequency (sum) of light responses and 2. the total
-% number of these events. The average light freq is the ratio of these two
-% values (sum of lightOn / total no. light events). 
-% The dark frequency is calculated by taking the total frequency of the
-% entire recording and subtracting the total frequency of the light
-% responses. The total number of dark events is calulated the same way.
-
-if Trigger > 0
-    lightOn = [];
-    lightEvents = [];
-
-    for j = 1:length(IntervTimes(:,1))
-        lightOn = [lightOn; sum(avgFiring(BinCenters.' >= IntervTimes(j,1) & BinCenters.' <= IntervTimes(j,2)))];
-        lightEvents = [lightEvents; numel(avgFiring(BinCenters.' >= IntervTimes(j,1) & BinCenters.' <= IntervTimes(j,2)))];
-    end
-
-    lightOff = (sum(avgFiring(BinCenters.' >= 0)) - sum(lightOn));
-    darkEvents = (numel(avgFiring(BinCenters.' >= 0)) - sum(lightEvents));
-
-    avgDarkFirFreq = lightOff/darkEvents;
-    avgLightFirFreq = sum(lightOn)/sum(lightEvents);
-    avgPI = ((avgLightFirFreq - avgDarkFirFreq) / (avgLightFirFreq + avgDarkFirFreq));
-
-    fprintf('Average firing frequency in darkness = %.2f Hz \n', avgDarkFirFreq);
-    fprintf('Average firing frequency in light = %.2f Hz \n', avgLightFirFreq);
-    fprintf('Average photoswitch index, P.I. = %.3f \n', avgPI);
-else
-end
-
-
-%% Calculate dark firing
-% If there is no trigger, this sequence calculates the total firing
-% frequency without light stimulus ("dark firing").
-
-if Trigger < 1
-    lightOff = sum(avgFiring(BinCenters.' >= 0));
-    darkEvents = numel(avgFiring(BinCenters.' >= 0));
-    
-    avgDarkFirFreq = lightOff/darkEvents;
-    
-    fprintf('Average firing frequency in darkness = %.2f Hz \n', avgDarkFirFreq);
-else
-end
-
-
 %% Subplot figure
-figure(5)
+figure(6)
 
 ax(1) = subplot(2,1,1);
 
 if Sort < 1
-    for m = 1:length(RawUnits)
+    for m = 1:length(raw_units)
         hold on;
-        spikeTimes = RawUnits{m}(:,1);
-        ntrials = ones(size(spikeTimes,1),1) * m;
-        plot(spikeTimes, ntrials, 'Marker', '.', 'Color', 'k', 'LineStyle', 'none')
+        spike_times = raw_units{m}(:,1);
+        ntrials = ones(size(spike_times,1),1) * m;
+        plot(spike_times, ntrials, 'Marker', '.', 'Color', 'k', 'LineStyle', 'none')
     end
     hold off;
 else
 end
 
 if Sort > 0
-    [~,Sorted] = sort(cellfun(@length,RawUnits), 'descend');
-    RawUnits = RawUnits(Sorted);
-    for m = 1:length(RawUnits)
+    [~,sorted_units] = sort(cellfun(@length,raw_units), 'descend');
+    raw_units = raw_units(sorted_units);
+    for m = 1:length(raw_units)
         hold on;
-        spikeTimes = RawUnits{m}(:,1);
-        ntrials = ones(size(spikeTimes,1),1) * m;
-        plot(spikeTimes, ntrials, 'Marker', '.', 'Color', 'k', 'LineStyle', 'none')
+        spike_times = raw_units{m}(:,1);
+        ntrials = ones(size(spike_times,1),1) * m;
+        plot(spike_times, ntrials, 'Marker', '.', 'Color', 'k', 'LineStyle', 'none')
     end
     hold off;
 else
 end
 
-ylim([0 size(RawUnits,1) + 1]);
+ylim([0 size(raw_units,1) + 1]);
 ylabel('Unit');
 hold off;
 
 ax(2) = subplot(2,1,2);
 
-FreqPlot = bar(BinCenters, avgFiring, 'FaceColor', 'k', 'BarWidth', 1.5);
+FreqPlot = bar(bin_centers, avg_firing, 'FaceColor', 'k', 'BarWidth', 1.5);
 
 if Trigger > 0
     hold on;
-    for j = 1:length(IntervTimes)                                         
-        stimLim = IntervTimes(j,:);
-        lightStim = [min(stimLim) max(stimLim) max(stimLim) min(stimLim)];
-        patch(lightStim, [0 0 max(ylim)*[1 1]], [0.3010 0.7450 0.9330], 'LineStyle', 'none');
+    for r = 1:length(interv_times)                                         
+        stim_limits = interv_times(r,:);
+        light_stim = [min(stim_limits) max(stim_limits) max(stim_limits) min(stim_limits)];
+        patch(light_stim, [0 0 max(ylim)*[1 1]], [0.3010 0.7450 0.9330], 'LineStyle', 'none');
         hold on
     end
 
-    FreqPlot = bar(BinCenters, avgFiring, 'FaceColor', 'k', 'BarWidth', 1.5);
+    FreqPlot = bar(bin_centers, avg_firing, 'FaceColor', 'k', 'BarWidth', 1.5);
     hold on
 else
 end
@@ -268,19 +400,52 @@ ylabel('Average firing frequency per unit (Hz)');
 hold off
 
 linkaxes(ax,'x');                                                         % links the two x-axes 
+toc
 
-
-%% Determine photoswitch index per unit
-
+%% Photoswitch index (e.g. relative change in RGC firing in dark v. in light)
+% Calculates average firing frequencies in darkness & in light, and the
+% average PI from these two values. To do so the code first calculates 1.
+% the total frequency (sum) of light responses and 2. the total
+% number of these events. The average light freq is the ratio of these two
+% values (sum of lighton_timesSum / total no. light events). 
+% The dark frequency is calculated by taking the total frequency of the
+% entire recording and subtracting the total frequency of the light
+% responses. The total number of dark events is calulated the same way.
+% 
 % if Trigger > 0
-
-% lightOnUnit = [];
-% lightEventsUnit = [];
-
-% for j = 1:length(IntervTimes(:,1))
-    % for n = 1:length(RawUnits)
-        % lightOnUnit = [lightOnUnit; sum(RawUnits{n,1}(:,1) >= IntervTimes(j,1) & RawUnits{n,1}(:,1) <= IntervTimes(j,2))];
-        % lightEventsUnit = [lightEventsUnit; numel(RawUnits{n,1}(:,1) >= IntervTimes(j,1) & RawUnits{n,1}(:,1) <= IntervTimes(j,2))];
-    % end
+%     lighton_timesSum = [];
+%     lighton_events = [];
+% 
+%     for r = 1:length(interv_times(:,1))
+%         lighton_timesSum = [lighton_timesSum; sum(avg_firing(bin_centers.' >= interv_times(r,1) & bin_centers.' <= interv_times(r,2)))];
+%         lighton_events = [lighton_events; numel(avg_firing(bin_centers.' >= interv_times(r,1) & bin_centers.' <= interv_times(r,2)))];
+%     end
+% 
+%     lightoff_timesSum = (sum(avg_firing(bin_centers.' >= 0)) - sum(lighton_timesSum));
+%     lightoff_events = (numel(avg_firing(bin_centers.' >= 0)) - sum(lighton_events));
+% 
+%     avg_darkfireFreq = lightoff_timesSum/lightoff_events;
+%     avg_lightfireFreq = sum(lighton_timesSum)/sum(lighton_events);
+%     avg_PI = ((avg_lightfireFreq - avg_darkfireFreq) / (avg_lightfireFreq + avg_darkfireFreq));
+%     
+%     disp('The following values come from the binning the histogram data:');
+%     fprintf('Average firing frequency in darkness = %.2f Hz \n', avg_darkfireFreq);
+%     fprintf('Average firing frequency in light = %.2f Hz \n', avg_lightfireFreq);
+%     fprintf('Average photoswitch index, P.I. = %.3f \n', avg_PI);
+% else
 % end
 
+
+%% Calculate dark firing
+% If there is no trigger, this sequence calculates the total firing
+% frequency without light stimulus ("dark firing").
+
+% if Trigger < 1
+%     lightoff_timesSum = sum(avg_firing(bin_centers.' >= 0));
+%     lightoff_events = numel(avg_firing(bin_centers.' >= 0));
+%     
+%     avg_darkfireFreq = lightoff_timesSum/lightoff_events;
+%     
+%     fprintf('Average firing frequency in darkness = %.2f Hz \n', avg_darkfireFreq);
+% else
+% end
