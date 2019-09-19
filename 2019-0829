@@ -66,6 +66,7 @@ if Trigger > 0
     
     interv_times = [parsed_trigTimes(1:2:end,:), parsed_trigTimes(2:2:end,:)];         % splits numTime array into two columns - column 1 for light on and column 2 for light off
     interv_duration = diff(interv_times, 1, 2);                             % returns the total length of each light stim interval, in seconds
+    interv_duration = interv_duration.';
     lighton_time = sum(interv_duration);                                       % returns the total time that the light stim was on, in seconds
     dark_time = record_time - lighton_time;                                 % length of time, in seconds, without light stimulus
 else
@@ -168,14 +169,16 @@ if Trigger > 0
     for m = 1:length(raw_units)
         for r = 1:length(interv_times)
             spikes_on(r) = numel(raw_unitsTime{m}(raw_unitsTime{m}(:,1) >= interv_times(r,1) & raw_unitsTime{m}(:,1) <= interv_times(r,2)));
-            spikes_on = spikes_on.';
+            % spikes_on = spikes_on.';
             
             spikes_light{m} = spikes_on;                                % calculates number of spikes that occur in each light-on interval for a particular unit
         end
-
+    end
+    
+    for m = 1:length(raw_units)
         for r = 1:length(interv_times)
-            freq_on(r) = spikes_light{m}(r,1) / interv_duration(r,1);
-            freq_on = freq_on.';
+            freq_on(r) = (spikes_light{m}(1,r) / interv_duration(1,r));
+            % freq_on = freq_on.';
             
             freq_light{m} = freq_on;                                    % calculates the firing frequency of each unit in each of the light-on intervals
         end
@@ -209,7 +212,8 @@ if Trigger > 0
     unitPI_histoplot = histogram(unit_PI, 'BinWidth', BW2);
     xlim([-1 1]);
     xlabel('Photoswitch index, PI');
-    ylabel('Events');
+    ylabel('No. events');
+    xl = xline (0, ':', 'LineWidth', 1.5);
     
     hold off;
     
