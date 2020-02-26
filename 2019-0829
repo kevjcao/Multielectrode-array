@@ -25,6 +25,28 @@ File = fullfile(FilePath, FileName);
 
 clearvars txt File
 
+%% figure outputs
+% in inches
+
+x_width=6;                                                               
+y_width=3;
+
+
+%% format duration of recording 
+% if the analysis requires only a certain portion of the recording, use
+% this module to determine the timeframe to analyze 
+
+Duration = 0;                                                          % specify if analysis is to be performed on a specific time duration of the recording
+
+spike_start = 40;                                                    % in seconds
+spike_end = 100;                                                    % in seconds
+
+
+if Duration > 0 || Duration < 0
+    num = num(num(:,1)>=spike_start & num(:,1)<=spike_end, :);
+    raw = cellfun(@(z) z(z(:,1)>=spike_start & z(:,1)<=spike_end, :), raw, 'UniformOutput', false);
+end
+
 
 %% Acquire timestamps of light intervals from trigger times
 % 1. MC_Rack continuously records the trigger input via a negative (-1) bias voltage every 3 ms
@@ -49,8 +71,19 @@ if Trigger > 0
     trig_timesRaw(1:4,:) = []; 
     trig_timesRaw = double(trig_timesRaw);
     
-    record_time = max(trig_timesRaw)/1000;                               % returns the total time of the recording in seconds
     
+    if Duration > 0 || Duration < 0                                      % if looking at a specific time window of the recording
+        trig_timesRaw = trig_timesRaw(trig_timesRaw(:,1)>=(spike_start*1000) & trig_timesRaw(:,1)<=(spike_end*1000), :);
+    end
+    
+    if Duration < 1
+        record_time = max(trig_timesRaw)/1000;                               % returns the total time of the recording in seconds
+    end
+    
+    if Duration > 0 || Duration < 0
+        record_time = spike_end - spike_start;
+    end
+        
     clearvars ans delimiter fidTrig formatSpec trig_timesArray
     
     parsed_trigTimes = [];
@@ -74,8 +107,36 @@ end
 
 clearvars diff_trig
 
+if Trigger < 0
+    [TrigFileName, TrigFilePath] = uigetfile( ...
+        {'*.xlsx', 'New Excel (*.xlsx)'; ...
+        '*.xls', 'Old Excel (*.xls)'}, ...
+        'Pick a file', ...
+        'Multiselect', 'on');
+    trigFile = fullfile(TrigFilePath, TrigFileName);
+    [trig_times] = xlsread(trigFile);
+    
+    record_time = max(num(:,1));
+    
+    if Duration > 0 || Duration < 0
+        % raw_units = cellfun(@(z) z(z(:,1)>=spike_start & z(:,1)<=spike_end, :), raw_units, 'UniformOutput', false);
+    end
 
-%% Raw histogram of all recorded spikes
+    interv_times = [trig_times(1:2:end,:), trig_times(2:2:end,:)];
+    
+    interv_duration = diff(interv_times, 1, 2);
+    interv_duration = interv_duration.';
+    lighton_time = sum(interv_duration);
+    dark_time = record_time - lighton_time;
+else
+end
+
+%% Display file name / experiment details
+
+disp(FileName);
+
+
+%% Raw histogram of all recorded spikes (figure 1)
 tic
 Histoplot = 1;                                                            % set 0 (no histogram) or 1 (histogram)
 
@@ -97,12 +158,13 @@ end
 hold off
 
 
-%% Raster trains of spike data from all units
-
-Sort = 1;                                                                 % if 1 = sort, if 0 = raw unit # without sorting
+%% split raw spikes into corresponding channel
 
 [~,~,channels] = unique(num(:,3));                                              % first separate raw num array based on electrode ch from MEA chip
 raw_channels = accumarray(channels, 1:size(num,1),[],@(r){num(r,:)});                  % generate a cell w/ subcells that contain each channel's unit firing
+
+
+%% split channels into units (waveforms)
 
 raw_units = [];
 ntrials = [];
@@ -115,7 +177,20 @@ for i = 1:numel(raw_channels)
         1:size(raw_channels{i,1}(:,2),1),[],@(r){raw_channels{i,1}(r,:)})];             % generate a cell array with subcells that has each unit's activity
 end
 
-figure(2)
+
+%% crop spike data in time
+% 
+% if Duration > 0 || Duration < 0
+%     raw_units = cellfun(@(z) z(z(:,1)>=spike_start & z(:,1)<=spike_end, :), raw_units, 'UniformOutput', false);
+% end
+%     
+
+%% Raster trains of spike data from all units (figure 2)
+
+Sort = 1;                                                                 % if 1 = sort, if 0 = raw unit # without sorting
+
+unit_raster = figure(2);
+
 hold on;
 
 if Sort < 1
@@ -138,17 +213,26 @@ if Sort > 0
 else
 end
 
+xlim([0 60]);                                                            % set range of x-axis, in seconds
 ylim([0 size(raw_units,1) + 1]);
 xlabel('Time (s)');
 ylabel('Unit');
+
+set(unit_raster, 'units', 'inches');
+set(unit_raster, 'position', [0 0 x_width y_width]);
+
+
+
 hold off
 
 fprintf('Number of channels = %d \n', i);
 fprintf('Number of units = %d \n', m);
 
-%% Calculate firing frequencies and PI per unit
 
-if Trigger > 0    
+
+%% Calculate firing frequencies and PI per unit (figure 3)
+
+if Trigger > 0 || Trigger < 0
     raw_unitsTime = cell(numel(raw_units), 1);
 
     for m = 1:length(raw_units)
@@ -205,10 +289,10 @@ if Trigger > 0
     avg_unitPI = mean(unit_PI);
     std_unitPI = std(unit_PI);
     
-    figure(3)
+    PI_histo = figure(3);
     hold on;
     
-    BW2 = 0.1;
+    BW2 = 0.05;                                                         % bin width for histogram of PI values; is not the binwidth for spiking frequency BW
     unitPI_histoplot = histogram(unit_PI, 'BinWidth', BW2);
     xlim([-1 1]);
     xlabel('Photoswitch index, PI');
@@ -322,13 +406,13 @@ avg_firing = (N(1,:) / BW) / numel(raw_units);                              % [n
 bin_centers = EDGES(1:end-1) + diff(EDGES)/2;
 
 
-%% Create frequency raster
+%% Create frequency raster (figure 4)
 
-figure(5)
+freq_raster = figure(4);
 
 FreqPlot = bar(bin_centers, avg_firing, 'FaceColor', 'k', 'BarWidth', 1.5);
 
-if Trigger > 0
+if Trigger > 0 || Trigger < 0
     hold on;
     for r = 1:length(interv_times)                                         % creates a shaded region for the light intervals
         stim_limits = interv_times(r,:);
@@ -342,13 +426,49 @@ if Trigger > 0
 else
 end
 
+%xlim([0 70]);                                                           % set range of x-axis, in seconds
+%ylim([0 15]);
+
 xlabel('Time (s)');
 ylabel('Average firing frequency per unit (Hz)');
 
+set(freq_raster, 'units', 'inches');
+set(freq_raster, 'position', [0 0 x_width 1.5]);                    % use preset values above, or set own limits in inches
+
+% print(freq_raster, 'freq_raster.png', '-dpng', '-r300');  
+
+
 hold off
 
+%% Light response index (LRI) v. photoswitch index (figure 5)
 
-%% Subplot figure
+if Trigger > 0 || Trigger < 0
+    unit_LRI = abs(unit_PI);
+    
+    LRI_histo = figure(5);
+    
+    hold on;
+    
+    BW3 = 0.05;                                                         % bin width for LRI histograms, not binwidth for PI histo or binwidth for spiking frequencies
+
+    unitPI_histoplot = histogram(unit_LRI, 'BinWidth', BW3);
+    xlim([0 1]);
+    xlabel('Light response index, LRI');
+    ylabel('No. events');
+    % xl2 = xline (0, ':', 'LineWidth', 1.5);
+    
+    hold off;
+    
+    [N_histLRI, edge_histLRI] = histcounts(unit_LRI, 'BinWidth', BW3);
+    bin_centersLRI = edge_histLRI(1:end-1) + diff(edge_histLRI)/2;
+    
+    LRI_histcount = [bin_centersLRI.', N_histLRI.'];
+    
+else
+end
+
+
+%% Subplot figure (figure 6)
 figure(6)
 
 ax(1) = subplot(2,1,1);
@@ -379,13 +499,17 @@ end
 
 ylim([0 size(raw_units,1) + 1]);
 ylabel('Unit');
+set(ax(1), 'YTickLabel', [], 'XTickLabel', []);
+set(ax(1), 'Visible', 'off');
+
+
 hold off;
 
 ax(2) = subplot(2,1,2);
 
 FreqPlot = bar(bin_centers, avg_firing, 'FaceColor', 'k', 'BarWidth', 1.5);
 
-if Trigger > 0
+if Trigger > 0 || Trigger < 0
     hold on;
     for r = 1:length(interv_times)                                         
         stim_limits = interv_times(r,:);
@@ -401,6 +525,11 @@ end
 
 xlabel('Time (s)');
 ylabel('Average firing frequency per unit (Hz)');
+
+set(ax(2), 'TickDir', 'out');
+set(ax(2), 'box', 'off');
+
+
 hold off
 
 linkaxes(ax,'x');                                                         % links the two x-axes 
@@ -444,12 +573,11 @@ toc
 % If there is no trigger, this sequence calculates the total firing
 % frequency without light stimulus ("dark firing").
 
-% if Trigger < 1
+% if Trigger < 1 & Trigger > -1
 %     lightoff_timesSum = sum(avg_firing(bin_centers.' >= 0));
 %     lightoff_events = numel(avg_firing(bin_centers.' >= 0));
 %     
 %     avg_darkfireFreq = lightoff_timesSum/lightoff_events;
-%     
 %     fprintf('Average firing frequency in darkness = %.2f Hz \n', avg_darkfireFreq);
 % else
 % end
