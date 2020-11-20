@@ -64,10 +64,10 @@ if Trigger == 1
     [trig_timesRaw] = loadtrigger(File);
     [interv_times, interv_duration, dark_time] = exptimes(trig_timesRaw, Duration, spike_start, spike_end);
 else
+    [interv_times] = 0;
 end
 
 clearvars trig_timesRaw 
-toc
 
 %% Bin raw spike data into 100ms slices
 
@@ -114,3 +114,4 @@ if Trigger == 1
 end
 
 clearvars BW2
+toc
