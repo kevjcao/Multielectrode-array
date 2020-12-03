@@ -2,7 +2,7 @@ function [trig_timesRaw] = loadtrigger(File)
 %% Acquire timestamps of light intervals from trigger times
 % Trigger filename must exactly match the .xlsx spike sorted data
 
-trigFile = strrep(File, '.xlsx', '.txt');                            % imports the corresponding .txt trigger file
+trigFile = regexprep(File, '.xlsx|.xls', '.txt');                            % imports the corresponding .txt trigger file
 fidTrig = fopen(trigFile);
 
 delimiter = '\t';
