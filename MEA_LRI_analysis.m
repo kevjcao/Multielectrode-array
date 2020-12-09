@@ -13,9 +13,9 @@ clear;
 close all;
 
 % Analysis duration
-Duration = 0;                                                               % 1 = analysis performed for a segment of the recording
-spike_start = 30;                                                           % in seconds
-spike_end = 110;                                                            % in seconds
+Duration = 1;                                                               % 1 = analysis performed for a segment of the recording
+spike_start = 00;                                                           % in seconds
+spike_end = 120;                                                            % in seconds
 
 % Stimulus used or not
 Trigger = 1;                                                                % trigger times = 1, other wise = 0
