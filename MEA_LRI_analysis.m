@@ -7,27 +7,32 @@
 % rasters are created from just the first column of each unit's array (e.g.
 % the spike times).
 
-%% Analysis conditions
+%% Clear workspace
 tic
 clear;
 close all;
 
+%% Conditions
 % Analysis duration
 Duration = 0;                                                               % 1 = analysis performed for a segment of the recording
-spike_start = 30;                                                           % in seconds
-spike_end = 110;                                                            % in seconds
+spike_start = 00;                                                           % in seconds
+spike_end = 120;                                                            % in seconds
 
 % Stimulus used or not
-Trigger = 1;                                                                % trigger times = 1, other wise = 0
+Trigger = 0;                                                                % trigger times = 1, other wise = 0
 
 % Parameters for PI & LRI calculation
 BW = 0.1;                                                                   % bin width for histogram of raw unsorted spike data
 BW2 = 0.05;                                                                 % bin width for histogram of PI/LRI values; is not the binwidth for spiking frequency BW
 
 % Plots and graphs
-Histoplot = 0;                                                              % set 0 (no histogram) or 1 (histogram)
-Sort = 1;                                                                   % if 1 = sort units, if 0 = no sorting
+Histoplot = 1;                                                              % set 0 (no histogram) or 1 (histogram)
+Sort = 0;                                                                   % if 1 = sort units, if 0 = no sorting
 
+% Parameters for ISI analysis
+ISI = 1;                                                                    % 1 = run analysis for ISIs, requires 4th column in raw Plexon export with ISIs
+BW_ISI = 5;                                                                 % bin width for ISI histograms, in ms
+ISIcutoff = 200;                                                           % ISI threshold, in ms
 
 %% Import raw sorted spike data from Plexon 
 
@@ -64,6 +69,7 @@ if Trigger == 1
     [trig_timesRaw] = loadtrigger(File);
     [interv_times, interv_duration, dark_time] = exptimes(trig_timesRaw, Duration, spike_start, spike_end);
 else
+    fprintf('No trigger times loaded \n\n');
     [interv_times] = 0;
 end
 
@@ -82,6 +88,7 @@ if Histoplot == 1
     HistoSpikes = histogram(spike_timeHist, 'BinWidth', BW);
     xlabel('Time (s)');
     ylabel('Number of spikes');
+    set(gca, 'TickDir', 'out');
     hold off
 else 
     fprintf('No histogram plotted\n\n');
@@ -89,7 +96,7 @@ end
 
 %% Arrange raw spike data into units and generate raster plot of unit activity
 
-[raw_units, unit_raster] = rawunits(num, Sort);
+[raw_units, unit_raster] = rawunits(num, Sort, ISI, ISIcutoff);
 
 clearvars num
 
@@ -98,7 +105,7 @@ clearvars num
 if Trigger == 1
     [unit_PI, PI_histo] = spikefreq(raw_units, interv_times, interv_duration, dark_time, BW2);
 end
-
+        
 clearvars interv_duration dark_time;
 
 %% Plot normalized firing frequency of recording
@@ -114,4 +121,10 @@ if Trigger == 1
 end
 
 clearvars BW2
-toc
+
+%% Analyze ISI for each unit
+
+if ISI == 1
+    [units_isi, isi_histo] = interspikeinterv(raw_units, BW_ISI);
+end
+

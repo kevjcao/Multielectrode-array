@@ -1,12 +1,12 @@
 function [interv_times, interv_duration, dark_time] = exptimes(trig_timesRaw, Duration, spike_start, spike_end)
-%% use trig_timesRaw to determine total record time and light/dark periods
+%% Use trig_timesRaw to determine total record time and light/dark periods
 
-if Duration == 1                                                             % if looking at a specific time window of the recording
+if Duration == 1                                                            % if looking at a specific time window of the recording
     trig_timesRaw = trig_timesRaw(trig_timesRaw(:,1)>=(spike_start*1000) & trig_timesRaw(:,1)<=(spike_end*1000), :);
 end
 
 if Duration == 0
-    record_time = max(trig_timesRaw)/1000;                                   % if looking at the total recording
+    record_time = max(trig_timesRaw)/1000;                                  % if looking at the total recording
 end
 
 if Duration == 1
