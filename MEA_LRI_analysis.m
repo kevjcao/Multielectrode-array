@@ -14,7 +14,7 @@ close all;
 
 %% Conditions
 % Analysis duration
-Duration = 0;                                                               % 1 = analysis performed for a segment of the recording
+Duration = 1;                                                               % 1 = analysis performed for a segment of the recording
 spike_start = 00;                                                           % in seconds
 spike_end = 120;                                                            % in seconds
 
