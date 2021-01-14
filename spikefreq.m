@@ -1,31 +1,31 @@
-function [unit_PI, PI_histo] = spikefreq(raw_units, interv_times, interv_duration, dark_time, BW2)
+function [unit_PI, PI_histo] = spikefreq(units_sorted, interv_times, interv_duration, dark_time, BW2)
 %% Function calculates the average PI of the recording
 % first calculates the firing freq in light & dark and then the PI per unit
 
-spikes_light = cell(numel(raw_units), 1);
+spikes_light = cell(numel(units_sorted), 1);
 spikes_on = [];
 
-freq_light = cell(numel(raw_units), 1);
+freq_light = cell(numel(units_sorted), 1);
 freq_on = [];
 
-unitfreq_light = cell(numel(raw_units), 1);
-spikes_dark = cell(numel(raw_units), 1);
-unitfreq_dark = cell(numel(raw_units), 1);
+unitfreq_light = cell(numel(units_sorted), 1);
+spikes_dark = cell(numel(units_sorted), 1);
+unitfreq_dark = cell(numel(units_sorted), 1);
 
-for m = 1:length(raw_units)
+for m = 1:length(units_sorted)
     for r = 1:length(interv_times)
-        spikes_on(r) = numel(raw_units{m}(raw_units{m}(:,1) >= interv_times(r,1) & raw_units{m}(:,1) <= interv_times(r,2)));
+        spikes_on(r) = numel(units_sorted{m}(units_sorted{m}(:,1) >= interv_times(r,1) & units_sorted{m}(:,1) <= interv_times(r,2)));
         % spikes_on = spikes_on.';
         spikes_light{m} = spikes_on;                                        % calculates number of spikes that occur in each light-on interval for a particular unit
     end
 end
-for m = 1:length(raw_units)
+for m = 1:length(units_sorted)
     for r = 1:length(interv_times)
         freq_on(r) = (spikes_light{m}(1,r) / interv_duration(1,r));
         % freq_on = freq_on.';
         freq_light{m} = freq_on;                                            % calculates the firing frequency of each unit in each of the light-on intervals
     end
-    spikes_dark{m} = numel(raw_units{m}(raw_units{m}(:,1) >=0)) - sum(spikes_light{m});
+    spikes_dark{m} = numel(units_sorted{m}(units_sorted{m}(:,1) >=0)) - sum(spikes_light{m});
     unitfreq_dark{m} = spikes_dark{m} / dark_time;                          % calculates the average unit firing frequency in without light stimulus
 end
 
@@ -37,7 +37,7 @@ freqdark.std = std(unitfreq_dark);
 freqlight.avg = mean(unitfreq_light);
 freqlight.std = std(unitfreq_light);
 
-for m = 1:length(raw_units)
+for m = 1:length(units_sorted)
     unit_PI(m) = (unitfreq_light(m) - unitfreq_dark(m)) / (unitfreq_light(m) + unitfreq_dark(m));
 end
 

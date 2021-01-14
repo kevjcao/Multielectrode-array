@@ -14,7 +14,7 @@ close all;
 
 %% Conditions
 % Analysis duration
-Duration = 1;                                                               % 1 = analysis performed for a segment of the recording
+Duration = 0;                                                               % 1 = analysis performed for a segment of the recording
 spike_start = 00;                                                           % in seconds
 spike_end = 120;                                                            % in seconds
 
@@ -26,13 +26,14 @@ BW = 0.1;                                                                   % bi
 BW2 = 0.05;                                                                 % bin width for histogram of PI/LRI values; is not the binwidth for spiking frequency BW
 
 % Plots and graphs
-Histoplot = 1;                                                              % set 0 (no histogram) or 1 (histogram)
+Histoplot = 0;                                                              % set 0 (no histogram) or 1 (histogram)
 Sort = 0;                                                                   % if 1 = sort units, if 0 = no sorting
 
 % Parameters for ISI analysis
+ISIexport = 0;
 ISI = 1;                                                                    % 1 = run analysis for ISIs, requires 4th column in raw Plexon export with ISIs
-BW_ISI = 5;                                                                 % bin width for ISI histograms, in ms
-ISIcutoff = 200;                                                           % ISI threshold, in ms
+BW_ISI = 2;                                                                % bin width for ISI histograms, in ms
+ISIcutoff = 2000;                                                            % ISI threshold, in ms, only used if ISIexport = 1
 
 %% Import raw sorted spike data from Plexon 
 
@@ -96,21 +97,21 @@ end
 
 %% Arrange raw spike data into units and generate raster plot of unit activity
 
-[raw_units, unit_raster] = rawunits(num, Sort, ISI, ISIcutoff);
+[raw_units, unit_raster, units_sorted] = rawunits(num, Sort, ISI, ISIcutoff);
 
 clearvars num
 
 %% Calculate firing frequencies and PI per unit
 
 if Trigger == 1
-    [unit_PI, PI_histo] = spikefreq(raw_units, interv_times, interv_duration, dark_time, BW2);
+    [unit_PI, PI_histo] = spikefreq(units_sorted, interv_times, interv_duration, dark_time, BW2);
 end
         
 clearvars interv_duration dark_time;
 
 %% Plot normalized firing frequency of recording
 
-[freq_plot] = freqplot(N, BW, EDGES, raw_units, Trigger, interv_times);
+[freq_plot] = freqplot(N, BW, EDGES, units_sorted, Trigger, interv_times);
 
 clearvars N BW EDGES
 
@@ -125,6 +126,7 @@ clearvars BW2
 %% Analyze ISI for each unit
 
 if ISI == 1
-    [units_isi, isi_histo] = interspikeinterv(raw_units, BW_ISI);
+    [isi_histo, isi_3d, ISI_raw] = interspikeinterv(raw_units, BW_ISI, ISIexport, ISIcutoff);
 end
 
+toc
