@@ -2,10 +2,7 @@
 % 1. This code requires sorted spike data from Plexon saved in an excel
 % format delineated as: 'SpikeTimes', 'Unit no.', 'channels. no.'; in that order. 
 
-% 2. It will generate a new array named 'raw_units' with each unit's firing
-% activity listed as a single Nx3 array where N is the no. of events. The
-% rasters are created from just the first column of each unit's array (e.g.
-% the spike times).
+% 2. If file is exported with 'ISI times', they need to be in the 4th column. 
 
 %% Clear workspace
 tic
@@ -18,22 +15,22 @@ Duration = 0;                                                               % 1 
 spike_start = 00;                                                           % in seconds
 spike_end = 120;                                                            % in seconds
 
-% Stimulus used or not
-Trigger = 0;                                                                % trigger times = 1, other wise = 0
+% Light stimulus 
+Trigger = 1;                                                                % Light stimulus with trigger times = 1, other wise = 0
 
 % Parameters for PI & LRI calculation
-BW = 0.1;                                                                   % bin width for histogram of raw unsorted spike data
-BW2 = 0.05;                                                                 % bin width for histogram of PI/LRI values; is not the binwidth for spiking frequency BW
+BW = 0.1;                                                                   % bin width, in seconds, for histogram of raw unsorted spike data
+BW2 = 0.05;                                                                 % bin width, in LRI values, for histogram of PI/LRI values; is not the binwidth for spiking frequency BW
 
 % Plots and graphs
 Histoplot = 0;                                                              % set 0 (no histogram) or 1 (histogram)
-Sort = 0;                                                                   % if 1 = sort units, if 0 = no sorting
+Sort = 1;                                                                   % if 1 = sort units, if 0 = no sorting
 
 % Parameters for ISI analysis
-ISIexport = 0;
-ISI = 1;                                                                    % 1 = run analysis for ISIs, requires 4th column in raw Plexon export with ISIs
-BW_ISI = 2;                                                                % bin width for ISI histograms, in ms
-ISIcutoff = 2000;                                                            % ISI threshold, in ms, only used if ISIexport = 1
+ISIexport = 0;                                                              % 0 = calculate interspike intervals (ISIs) from spike times (1st column); 1 = ISIs exported from Plexon
+ISI = 1;                                                                    % 1 = run analysis for ISIs
+BW_ISI = 10;                                                                 % bin width for ISI histograms, in ms
+ISIcutoff = 2000;                                                           % maximum ISI, in ms, used in ISI analysis (i.e., low pass filter)
 
 %% Import raw sorted spike data from Plexon 
 
@@ -81,7 +78,7 @@ clearvars trig_timesRaw
 fprintf('Bin size = %d ms \n', BW * 1000)
 
 spike_timeHist = cell2mat(raw(:,1));
-[N, EDGES] = histcounts(spike_timeHist, 'BinWidth', BW);                    % N is the counts for each bin; EDGES are the bin edges
+[N, EDGES] = histcounts(spike_timeHist, 'BinWidth', BW);                    % N is the counts for each bin, EDGES are the bin edges
 
 if Histoplot == 1
     hold on;
@@ -92,12 +89,12 @@ if Histoplot == 1
     set(gca, 'TickDir', 'out');
     hold off
 else 
-    fprintf('No histogram plotted\n\n');
+    fprintf('No histogram for raw spike data plotted\n\n');
 end
 
 %% Arrange raw spike data into units and generate raster plot of unit activity
 
-[raw_units, unit_raster, units_sorted] = rawunits(num, Sort, ISI, ISIcutoff);
+[unit_raster, units_sorted] = rawunits(num, Sort, ISIexport, ISIcutoff);
 
 clearvars num
 
@@ -126,7 +123,7 @@ clearvars BW2
 %% Analyze ISI for each unit
 
 if ISI == 1
-    [isi_histo, isi_3d, ISI_raw] = interspikeinterv(raw_units, BW_ISI, ISIexport, ISIcutoff);
+    [isi_histo, isi_3d, ISI_raw] = interspikeinterv(units_sorted, BW_ISI, ISIexport, ISIcutoff);
 end
 
 toc

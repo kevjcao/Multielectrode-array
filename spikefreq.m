@@ -48,7 +48,6 @@ unitPI.std = std(unit_PI);
         
 
 %% Plot histogram of LRI/PI values
-
 PI_histo = figure(3);
 hold on;
 unitPI_histoplot = histogram(unit_PI, 'BinWidth', BW2);
