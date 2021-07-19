@@ -1,4 +1,4 @@
-function [unit_PI, PI_histo] = spikefreq(units_sorted, interv_times, interv_duration, dark_time, BW2)
+function [unit_PI, PI_histo, N2, EDGES2] = spikefreq(units_sorted, interv_times, interv_duration, dark_time, BW2)
 %% Function calculates the average PI of the recording
 % first calculates the firing freq in light & dark and then the PI per unit
 
@@ -48,6 +48,7 @@ unitPI.std = std(unit_PI);
         
 
 %% Plot histogram of LRI/PI values
+
 PI_histo = figure(3);
 hold on;
 unitPI_histoplot = histogram(unit_PI, 'BinWidth', BW2);
@@ -58,6 +59,9 @@ xl = xline (0, ':', 'LineWidth', 1.5);
 set(gca, 'TickDir', 'out');
 hold off;
 
+[N2, EDGES2] = histcounts(unit_PI, 'BinWidth', BW2);
+
+
 %% Display frequency & LRI/PI values
 % values reported as average +/- standard deviation
 
@@ -65,5 +69,7 @@ fprintf('Average firing frequency in darkness = %.2f +/- %.2f Hz \n', freqdark.a
 fprintf('Average firing frequency in light = %.2f +/- %.2f Hz \n\n', freqlight.avg, freqlight.std);
 fprintf('PI histogram binsize = %.3f \n', BW2);
 fprintf('Average photoswitch index, P.I. = %.3f +/- %.3f \n\n', unitPI.avg, unitPI.std);    
+
+
 end
 

@@ -1,4 +1,4 @@
-function [unit_raster, units_sorted] = rawunits(num, Sort, ISIcutoff, ISIexport)
+function [raw_units, unit_raster, units_sorted] = rawunits(num, Sort, ISIcutoff, ISIexport)
 %% Function returns array of units from the raw spike array and plots a raster 
 % Split raw spikes array into corresponding electrode channels
 

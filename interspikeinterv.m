@@ -27,36 +27,29 @@ if ISIexport == 0
     else
     end
     
-    fprintf('ISI times binned at %d ms \n\n', BW_ISI);
-    
     %% Create raster of ISI histograms
     isi_histo = figure(6);
     hold on;
-    imagesc(padded_ISIs);
+    ISIraster = imagesc(padded_ISIs);
+    
     ylabel('Unit');
-    ylim([0 m]);
     xlabel('Interspike interval, ms');
-    xlim([0 50]);                                                           % x-axis limit, scale by BW_ISI (multiply by BW_ISI for time, in ms)
+    xlim([0 200]);                                                           % x-axis limit, scale by BW_ISI (multiply by BW_ISI for time, in ms)
     xt = get(gca, 'XTick');
     set(gca, 'XTick', xt, 'XTickLabel', xt*BW_ISI);
-    p = colorbar;
-    p.Label.String = ('Counts');
-    p.Label.FontSize = 11;
+    colorbar;
     set(gca, 'TickDir', 'out');
     hold off
     
     % Create 3D surf plot of ISIs
     isi_3d = figure(7);
     hold on;
-    surf(padded_ISIs, 'FaceColor', 'interp');
-    view([25 60]);                                                          % set azimuth and elevation of 3d plot
+    ISI3d = surf(padded_ISIs, 'FaceColor', 'interp');
+
     ylabel('Unit');
-    ax = gca;
-    ax.YDir = ('Reverse');
-    ylim([0 m]);
     xlabel('Interspike interval, ms');
     zlabel('Counts');
-    xlim([0 50]);                                                           % x-axis limit, scale by BW_ISI (multiply by BW_ISI for time, in ms)
+    xlim([0 200]);                                                           % x-axis limit, scale by BW_ISI (multiply by BW_ISI for time, in ms)
     xt = get(gca, 'XTick');
     set(gca, 'XTick', xt, 'XTickLabel', xt*BW_ISI);
     set(gca, 'TickDir', 'out');
