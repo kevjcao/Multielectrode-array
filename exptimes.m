@@ -17,11 +17,13 @@ parsed_trigTimes = [];
 
 for i = 1:length(trig_timesRaw)-1                                           % creates an array with the trigger times before and after the TTL signal
     diff_trig = trig_timesRaw(i + 1) - trig_timesRaw(i);
-    if diff_trig > 4
+    if diff_trig > 1
         parsed_trigTimes = [parsed_trigTimes; trig_timesRaw(i); trig_timesRaw(i + 1)];
     end
 end
 
+parsed_trigTimes = [trig_timesRaw(1,1); parsed_trigTimes];
+parsed_trigTimes = [parsed_trigTimes; trig_timesRaw(end)];
 parsed_trigTimes = parsed_trigTimes/1000;
 
 interv_times = [parsed_trigTimes(1:2:end,:), parsed_trigTimes(2:2:end,:)];  % splits numTime array into two columns - column 1 for light on and column 2 for light off
